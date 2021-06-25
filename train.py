@@ -165,10 +165,10 @@ def train(args, model, optimizer):
 
             if i % 500 == 0:
                 torch.save(
-                    model.state_dict(), os.path.join(args.save_checkpoint_path, "checkpoint/model_{}.pt".format(str(i + 1).zfill(6)))
+                    model.state_dict(), os.path.join(args.save_checkpoint_path, "checkpoint/model_latest.pt")
                 )
                 torch.save(
-                    optimizer.state_dict(), os.path.join(args.save_checkpoint_path,"checkpoint/optim_{}.pt".format(str(i + 1).zfill(6)))
+                    optimizer.state_dict(), os.path.join(args.save_checkpoint_path, "checkpoint/optim_latest.pt")
                 )
 
 if __name__ == "__main__":
