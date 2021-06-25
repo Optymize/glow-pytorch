@@ -2,6 +2,7 @@ from tqdm import tqdm
 import numpy as np
 from PIL import Image
 from math import log, sqrt, pi
+import os
 
 import argparse
 
@@ -36,6 +37,9 @@ parser.add_argument("--img_size", default=64, type=int, help="image size")
 parser.add_argument("--temp", default=0.7, type=float, help="temperature of sampling")
 parser.add_argument("--n_sample", default=20, type=int, help="number of samples")
 parser.add_argument("path", metavar="PATH", type=str, help="Path to image directory")
+parser.add_argument("--checkpoint_model_path", metavar="PATH", type=str, help="Path to Checkpoint")
+parser.add_argument("--checkpoint_optim_path", metavar="PATH", type=str, help="Path to Checkpoint")
+parser.add_argument("--save_checkpoint_path", metavar="PATH", type=str, help="Path to Checkpoint")
 
 
 def sample_data(path, batch_size, image_size):
@@ -99,9 +103,18 @@ def train(args, model, optimizer):
 
     z_sample = []
     z_shapes = calc_z_shapes(3, args.img_size, args.n_flow, args.n_block)
-    for z in z_shapes:
-        z_new = torch.randn(args.n_sample, *z) * args.temp
-        z_sample.append(z_new.to(device))
+    
+    # Load Random z_sample
+    if args.checkpoint_model_path:
+      z_sample = np.load(os.path.join(args.save_checkpoint_path, "zsample/z.npy"), allow_pickle=True)
+    else:
+      for z in z_shapes:
+          z_new = torch.randn(args.n_sample, *z) * args.temp
+          z_sample.append(z_new.to(device))
+  
+      # save Random z_sample
+      np.save(os.path.join(args.save_checkpoint_path, "zsample/z"), z_sample)  
+      
 
     with tqdm(range(args.iter)) as pbar:
         for i in pbar:
@@ -144,20 +157,19 @@ def train(args, model, optimizer):
                 with torch.no_grad():
                     utils.save_image(
                         model_single.reverse(z_sample).cpu().data,
-                        f"sample/{str(i + 1).zfill(6)}.png",
+                        os.path.join(args.save_checkpoint_path, "sample/{}.png".format(str(i + 1).zfill(6))),
                         normalize=True,
                         nrow=10,
                         range=(-0.5, 0.5),
                     )
 
-            if i % 10000 == 0:
+            if i % 500 == 0:
                 torch.save(
-                    model.state_dict(), f"checkpoint/model_{str(i + 1).zfill(6)}.pt"
+                    model.state_dict(), os.path.join(args.save_checkpoint_path, "checkpoint/model_{}.pt".format(str(i + 1).zfill(6)))
                 )
                 torch.save(
-                    optimizer.state_dict(), f"checkpoint/optim_{str(i + 1).zfill(6)}.pt"
+                    optimizer.state_dict(), os.path.join(args.save_checkpoint_path,"checkpoint/optim_{}.pt".format(str(i + 1).zfill(6)))
                 )
-
 
 if __name__ == "__main__":
     args = parser.parse_args()
@@ -171,5 +183,11 @@ if __name__ == "__main__":
     model = model.to(device)
 
     optimizer = optim.Adam(model.parameters(), lr=args.lr)
+
+    if args.checkpoint_model_path:
+      model.load_state_dict(torch.load(args.checkpoint_model_path))
+      optimizer.load_state_dict(torch.load(args.checkpoint_optim_path))
+      # epoch = checkpoint['epoch']
+      # loss = checkpoint['loss']
 
     train(args, model, optimizer)
